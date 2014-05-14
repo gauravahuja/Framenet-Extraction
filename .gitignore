@@ -1,0 +1,8 @@
+framenet_v15
+results
+*.bak
+*.pyc
+*.jar
+*.pickle
+ParsedSentences.txt
+*.csv

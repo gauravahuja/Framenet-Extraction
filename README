@@ -1,0 +1,184 @@
+Extracting Relations from Framenet
+==================================
+
+Author: Gaurav Ahuja
+Email: ga2371@columbia.edu
+
+Spring 2014, Columbia University
+
+This file is divided into four sections
+1. Introduction
+2. Architecture
+3. Code
+4. Usage
+
+1. Introduction
+===============
+
+Framenet is a dataset for frame semantics. A semantic frame can be thought of as a conceptual structure describing an event, relation, or object and the participants in it.
+
+1.1 Frames
+----------
+A frame is a schematic representation of a situation involving various participants and other conceptual roles. Example names of frames are Commutative_process, Make_noise etc.
+
+1.2 Frame Element
+-----------------
+Each frame has a number of frame elements, which can be thought of as semantic roles. Example the frame Commerce_buy has frame elements like Buyer, Goods, Manner, Means etc. The frame Impact has frame elements like Impactee, Impactor, Cause etc.
+
+1.3 Lexical Units
+-----------------
+Lexical units are words tied to specific meanings. If a word has multiple meanings, then typically there will be multiple lexical units tied to different frames. Lexical units that evoke the Commerce_goods-transfer frame include the verbs "buy", "purchase", as well as "sell".
+
+1.4 Treating them as Concepts and Relations
+-------------------------------------------
+In Framenet a sentence is annotated for a target word (lexical unit). Phrases in the sentences are marked for various semantic role (frame element). We treat the target word and the phrase as concepts and the semantic role as a relation between the two concepts. We refine the concepts by considering the head word from the phrase.
+
+2. Architecure
+==============
+Framenet dataset is a collection of xml files. We parse these xml files into a sqlite database in python. We extract list of frames, lexical units, annotated sentences and frame element annotation from the xml files and store them in a database.
+
+The database has 5 tables:
+
+A. FRAME
+--------
+This table consists of two columns
+a. ID INT: Frame ID
+b. Name varchar(200)): Frame Name
+
+B. LU
+-----
+This table consists of five columns
+a. ID INT: Lexical unit ID
+b. Name varchar(200): Lexical Unit Name
+c. FrameID INT: Frame ID associated with this lexical unit
+d. POS varchar(10): Part of speech of this lexical unit
+e. AnnotatedSentences INT: Number of annotated sentences for this lexical unit
+
+C. FE
+-----
+This table consists of file columns
+a. ID INT: Frame Element ID
+b. Name varchar(200): Frame Element Name
+c. FrameID INT: Frame ID of associated Frame
+d. CoreType varchar(200): Type of Frame Element
+e. Abbrev varchar(100): Abbreviation of Frame Element
+
+D. FEAnnotation
+---------------
+This table consits of eleven columns
+a. FrameID INT: Frame ID of the associated frame
+b. LUName varchar(200): Lexical Unit name for which the annotation is done
+c. LUID INT: Lexical unit ID of the associated lexical unit
+d. FEID INT: Frame Element ID of the annotated frame element
+e. FEName varchar(200): Name of the annotated frame element
+f. PT varchar(200): Phrase type of the pharse annotated for the frame element
+g. GF varchar(200): Grammatical function of the phrase annotated
+h. SentID INT: Sentence ID of the sentence used in this annotation
+i. start INT: Start index of the annotated pharse in the sentence
+j. end INT: End index of the annotated phrase in the sentence
+k. WordCount INT: Number of words in the annotated phrase
+
+E. Sent
+-------
+This table consists of two columns
+a. ID INT: Sentence ID
+b. Text varchar(2000): Sentence Text
+
+In order to get the head word of phrases which consists of more than one word we use the Stanford Parse to generate the parse tree and dependency parse. This also helps us to extract the part of speech of the head word. The cases where head word is a preposition, determiner, auxilary like 'to' the dependency parse is helpful in extracting the actual head word/concept from the phrase.
+
+The relations are extracted into csv file with delimiter as ';'. Three csv files are generated
+
+A. target-fe-head-headPOS.csv
+-----------------------------
+This is the major file with concepts and relations. This file consists of six columns seperated by ';'. The six columns are 
+a. target/lexical unit/concept
+b. frame element/semantic role/Relation
+c. headWord/concept
+d. phraseHeadWordPOS: POS of the head word of phrase
+e. phrase: Full phrase text
+f. sentID: Sentence from which this was extracted
+
+B. fe-POS.csv
+-------------
+This file contains two columns
+a. Frame element
+b. POS: The part of speech tag that occurs in the phrase annotated with the frame element.
+
+C. fe-count.csv
+---------------
+This file contains two columns
+a. Frame element
+b. Count: Number of words in phrase annotated with the frame element.
+There will be as many lines with the same Frame element as the number are phrases annotated with this frame element. 
+
+3. Code
+=======
+
+Following are the major files involved
+
+a. config.py: Contains all config information like, path to framenet, name of database etc.
+b. createTables.py: Defines function to create tables in the database.
+c. dropTables.py: Defines function to drop tables in database.
+d. extractRelations.py: Framework to extract relations from the populated FEAnnotation table. Creates the csv files.
+e. getResults.py: Extracts headword from phrases and uses parse tree and dependency parse to get it.
+f. ParsedSentences.txt.tar.gz: Output of stanford parser on the sentences in the database. Extract this to get text file.
+g. parseFrameFile.py: Defines function to parse the frame net frame xml files.
+h. parseFramenet.py: Framework to parse the frame net dataset into the database 
+i. parseLUFile.py: Defines function to parse the frame net lexical unit xml files.
+j. ParseSentences.java: Code to produce ParsedSentences.txt. Uses the stanford parse on sentences in the database.
+k. pickleParsedSentences.py: Stores the data from ParsedSentences.txt in binary format for use by other files.
+l. README: This file
+m. sentences.txt: Each line of this file is a sentence from the database.
+n. sentIDMap.txt: Each line consists of two values, 'ln' and 'sentID'. Where line number 'ln' in sentences.txt has the sentence with sentences ID 'sentID'
+
+
+4. Usage
+========
+
+
+4.1 Parsing framenet into database
+----------------------------------
+
+In config.py set variables
+a. dbName: The name of database to be created
+b. framenetPath: Full path of framenet dataset
+
+Use the following command(s)
+
+> python parseFramenet.py
+
+The database is created after this command. Files sentences.txt and sentIDMap.txt are already created from the Sent Table in the database. In case new sentences are used, these files will have to generated from the Sent Table.
+
+4.2 Running the stanford Parser
+-------------------------------
+Compile the ParseSentences.java file:
+> javac -cp .:stanford-parser.jar:stanford-parser-3.3.1-models.jar ParseSentences.java
+Replace stanford-parser.jar:stanford-parser-3.3.1-models.jar with full path if not present in same directory
+
+Run the parser
+> java -cp .:stanford-parser-3.3.1-models.jar:stanford-parser.jar ParseSentences sentences.txt > ParsedSentences.txt
+Replace stanford-parser.jar:stanford-parser-3.3.1-models.jar with full path if not present in same directory
+This process will take a lot of time(over 20 hours) to complete. Compressed version of ParsedSentences.txt is already provided. Use the following command to extract it from the compressed file
+>tar xzf ParsedSentences.txt.tar.gz
+
+4.3 Preprocessing the ParsedSentences.txt
+-----------------------------------------
+In config.py set variables
+a. sentencesFile: File that contains all sentences. Example: "sentences.txt"
+b. sentIDMapFile: File that maps line number to sentence ID. Example: "sentIDMap.txt"
+c. parsedSentencesFile: File where the stanford parser output is stored. Example: "ParsedSentences.txt"
+
+Use the following command(s)
+> python pickleParsedSentences.py
+
+This will create two binary files
+a. depParseDict.pickle
+b. parseTreeStringDict.pickle
+These two files are required by the next step
+
+4.4 Extract Results
+-------------------
+Use the following command(s)
+> python extractRelations.py 
+This will create the csv files.
+
